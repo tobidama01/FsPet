@@ -87,7 +87,7 @@ async function fetchBotStream(
           content: m.text,
         })),
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok || !res.body) throw new Error("api_error");
 

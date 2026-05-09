@@ -152,4 +152,6 @@ def stream_reply(message: str, history: list[dict]):
         if e.status_code == 429:
             yield _QUOTA_MSG
         else:
-            raise
+            yield f"Ocorreu um erro no servidor (API). Detalhes: {e.message}"
+    except Exception as e:
+        yield f"Desculpe, ocorreu um erro inesperado: {str(e)}"
