@@ -32,7 +32,7 @@ export function Cart() {
       />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col animate-slide-in">
+      <div className="fixed right-0 top-0 h-full w-full sm:max-w-md bg-white z-50 shadow-2xl flex flex-col animate-slide-in">
         {/* Header */}
         <div className="bg-[#1B2A4A] text-white px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -102,27 +102,27 @@ export function Cart() {
                     <div className="flex items-center gap-2 mt-2">
                       <button
                         onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                        className="w-7 h-7 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:border-[#1B2A4A] transition-colors"
+                        className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:border-[#1B2A4A] transition-colors"
                       >
-                        <Minus size={12} />
+                        <Minus size={14} />
                       </button>
-                      <span className="font-semibold text-[#1B2A4A] w-5 text-center text-sm">
+                      <span className="font-semibold text-[#1B2A4A] w-6 text-center text-sm">
                         {item.quantity}
                       </span>
                       <button
                         onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        className="w-7 h-7 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:border-[#1B2A4A] transition-colors"
+                        className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center hover:border-[#1B2A4A] transition-colors"
                       >
-                        <Plus size={12} />
+                        <Plus size={14} />
                       </button>
                     </div>
                   </div>
 
                   <button
                     onClick={() => removeItem(item.product.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-1"
+                    className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 p-1"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={18} />
                   </button>
                 </div>
               );

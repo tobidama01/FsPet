@@ -620,68 +620,56 @@ export const products: Product[] = [
   },
 ];
 
-// ── Image map: product.id → extracted individual image ──
+// ── Image map: product.id → real image from supplier photo bank ──
 const IMAGE_MAP: Record<string, string> = {
-  // Comedouros/Bebedouros
-  "bq01": "/products/comedouro-antiformiga-350ml.jpg",
-  "bq02": "/products/comedouro-antiformiga-350ml.jpg", // reuso
-  "bq03": "/products/comedouro-antiformiga-350ml.jpg", // reuso
-  "ms1637": "/products/com-aluminio-grande-2300ml.jpg",
-  "ms1638": "/products/com-aluminio-grande-2300ml.jpg",
-  "beb-portatil": "/products/bebedouro-automatico.jpg",
-  "bebedouro-fonte": "/products/bebedouro-fonte.jpg",
-  "comedouro-gato-duplo": "/products/comedouro-antiformiga-350ml.jpg", // fallback
-  
-  // Guias
-  "jp0361-a": "/products/guia-corda-amortecedor.jpg",
-  "jp0327": "/products/guia-corda-amortecedor.jpg",
-  "jp0328": "/products/guia-corda-amortecedor.jpg",
-  "jp0378": "/products/guia-adestramento.jpg",
-  "rt2270": "/products/guia-nylon.jpg",
-  
-  // Gatos / Arranhadores
-  "arranhador-torre": "/products/arranhador-torre-gatos.jpg",
-  "arranhador-simples": "/products/arranhador-simples-sisal.jpg",
-  "cama-gato": "/products/cama-ninho-gatos.jpg",
-  
-  // Higiene / Banho e Tosa
-  "shampoo-caes": "/products/shampoo-caes.jpg",
-  "shampoo-gatos": "/products/shampoo-gatos.jpg",
-  "condicionador-pet": "/products/condicionador-pet.jpg",
-  "perfume-colonia": "/products/perfume-colonia.jpg",
-  "antipulgas-spray": "/products/antipulgas-spray.jpg",
-  "lenco-umedecido": "/products/lenco-umedecido.jpg",
-  "tesoura-tosa": "/products/tesoura-tosa.jpg",
-  "maquina-tosa": "/products/maquina-tosa.jpg",
-  "soprador-kyklon": "/products/maquina-tosa.jpg", // fallback
-  "escova-pelo": "/products/tesoura-tosa.jpg", // fallback
-  
-  // Petiscos / Ração
-  "petisco-ossinho": "/products/petisco-ossinho-natural.jpg",
-  "petisco-bifinho": "/products/bifinho-carne.jpg",
-  "petisco-frango": "/products/bifinho-carne.jpg", // fallback
-  "petisco-gato-sachê": "/products/racao-gatos.jpg", // fallback
-  "snack-dental": "/products/petisco-ossinho-natural.jpg", // fallback
-  "finicat": "/products/racao-gatos.jpg",
-  
-  // Animais Pequenos
-  "gaiola-passaro": "/products/gaiola-passaro.jpg",
-  "hamster-gaiola": "/products/hamster-gaiola.jpg",
-  "caneca-alum-borboleta-p": "/products/caneca-alum-borboleta-p.jpg",
-  "caneca-alum-borboleta-m": "/products/caneca-alum-borboleta-m.jpg",
-  "caneca-alum-borboleta-g": "/products/caneca-alum-borboleta-g.jpg",
-  "banheira-alum-p": "/products/banheira-alum-p.jpg",
-  "banheira-alum-m": "/products/banheira-alum-m.jpg",
-  "banheira-alum-g": "/products/banheira-alum-g.jpg",
-  "comida-passaro": "/products/petisco-ossinho-natural.jpg", // fallback
-  
+  // Comedouros anti-formiga (todos os tamanhos usam a mesma imagem)
+  "bq01": "/products/comedouro-antiformiga.png",
+  "bq02": "/products/comedouro-antiformiga.png",
+  "bq03": "/products/comedouro-antiformiga.png",
+
+  // Comedouro duplo gatos
+  "comedouro-gato-duplo": "/products/comedouro-duplo.png",
+
+  // Coleiras
+  "coleira-nylon-p": "/products/coleira.png",
+  "coleira-nylon-m": "/products/coleira.png",
+  "coleira-nylon-g": "/products/coleira.png",
+
+  // Higiene
+  "escova-pelo": "/products/escova-pelo.png",
+
+  // Petiscos
+  "petisco-ossinho": "/products/petisco-ossinho.png",
+  "petisco-bifinho": "/products/bifinho.png",
+  "petisco-frango": "/products/bifinho.png",
+  "snack-dental": "/products/snack-dental.png",
+
+  // Brinquedos
+  "brinq-bola": "/products/bola-caes.png",
+  "brinq-latex": "/products/mordedor-latex.png",
+
+  // Gatos — higiene
+  "areia-gatos-4kg": "/products/areia-sanitaria.png",
+  "caixa-areia": "/products/caixa-areia.png",
+
   // Veterinário
-  "vermifugo-caes": "/products/vermifugo-caes.jpg",
-  "vermifugo-gatos": "/products/vermifugo-gatos.jpg",
-  "antipulgas-pipeta": "/products/antipulgas-pipeta.jpg",
-  "suplemento-articular": "/products/suplemento-articular.jpg",
-  "colar-elizabetano": "/products/suplemento-articular.jpg", // fallback
-  "seringa-oral": "/products/vermifugo-caes.jpg", // fallback
+  "vermifugo-caes": "/products/vermifugo-caes.png",
+  "vermifugo-gatos": "/products/vermifugo-gatos.png",
+  "suplemento-articular": "/products/suplemento-seringa.png",
+  "seringa-oral": "/products/suplemento-seringa.png",
+
+  // Animais Pequenos — comedouros para gaiola
+  "caneca-alum-borboleta-p": "/products/caneca-gaiola.png",
+  "caneca-alum-borboleta-m": "/products/caneca-gaiola.png",
+  "caneca-alum-borboleta-g": "/products/caneca-gaiola.png",
+
+  // Animais Pequenos — banho
+  "banheira-alum-p": "/products/banho-seco-hamster.png",
+  "banheira-alum-m": "/products/banho-seco-hamster.png",
+  "banheira-alum-g": "/products/banho-seco-hamster.png",
+
+  // Animais Pequenos — alimentos
+  "comida-passaro": "/products/feno-passaro.png",
 };
 
 export function getProductImage(product: Product): string | undefined {
@@ -699,13 +687,21 @@ export function getProductsByCategory(categoryId: string): Product[] {
   return products.filter((p) => p.category === categoryId);
 }
 
+const normalize = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
 export function searchProducts(query: string): Product[] {
-  const q = query.toLowerCase();
+  const q = normalize(query);
+  const categoryName = (id: string) =>
+    categories.find((c) => c.id === id)?.name ?? "";
   return products.filter(
     (p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.tags?.some((t) => t.toLowerCase().includes(q))
+      normalize(p.name).includes(q) ||
+      normalize(p.description).includes(q) ||
+      normalize(categoryName(p.category)).includes(q) ||
+      (p.subcategory && normalize(p.subcategory).includes(q)) ||
+      (p.ref && normalize(p.ref).includes(q)) ||
+      p.tags?.some((t) => normalize(t).includes(q))
   );
 }
 

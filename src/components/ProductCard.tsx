@@ -56,7 +56,7 @@ export function ProductCard({ product }: ProductCardProps) {
       )}
 
       {/* Image area */}
-      <div className={`relative h-44 bg-gradient-to-br ${bgClass} flex items-center justify-center overflow-hidden`}>
+      <div className={`relative h-36 sm:h-44 bg-gradient-to-br ${bgClass} flex items-center justify-center overflow-hidden`}>
         {imgSrc && !imgError ? (
           <>
             <Image
@@ -72,14 +72,14 @@ export function ProductCard({ product }: ProductCardProps) {
           </>
         ) : (
           // Fallback emoji
-          <span className="text-6xl opacity-60 group-hover:scale-110 transition-transform duration-300 select-none">
+          <span className="text-5xl sm:text-6xl opacity-60 group-hover:scale-110 transition-transform duration-300 select-none">
             {categoryEmojis[product.category] || "🐾"}
           </span>
         )}
       </div>
 
       {/* Content */}
-      <div className="p-4 flex flex-col flex-1">
+      <div className="p-3 sm:p-4 flex flex-col flex-1">
         {/* Category tag */}
         {product.subcategory && (
           <span className="text-xs text-[#89C4CF] font-medium uppercase tracking-wide mb-1">
@@ -95,7 +95,7 @@ export function ProductCard({ product }: ProductCardProps) {
           <p className="text-xs text-gray-400 mb-2">REF: {product.ref}</p>
         )}
 
-        <p className="text-xs text-gray-500 line-clamp-2 mb-3">
+        <p className="text-xs text-gray-500 line-clamp-1 sm:line-clamp-2 mb-3">
           {product.description}
         </p>
 
@@ -106,7 +106,7 @@ export function ProductCard({ product }: ProductCardProps) {
               R$ {product.originalPrice.toFixed(2).replace(".", ",")}
             </p>
           )}
-          <p className="text-xl font-bold text-[#1B2A4A]">
+          <p className="text-lg sm:text-xl font-bold text-[#1B2A4A]">
             R${" "}
             <span className={product.isPromo ? "text-red-500" : ""}>
               {product.price.toFixed(2).replace(".", ",")}
@@ -118,7 +118,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <button
           onClick={handleAdd}
           id={`add-to-cart-${product.id}`}
-          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+          className={`w-full flex items-center justify-center gap-1.5 py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 ${
             added
               ? "bg-green-500 text-white scale-95"
               : "bg-[#F5C800] text-[#1B2A4A] hover:bg-yellow-400 active:scale-95"

@@ -23,7 +23,7 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-const WHATSAPP_NUMBER = "5551981529567"; // FS PET Distribuidora
+const WHATSAPP_NUMBER = "555195334385";
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -74,18 +74,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (items.length === 0) return;
 
     const lines = [
-      "🐾 *Olá, gostaria de fazer um orçamento na FS PET!*",
+      "*Ola, gostaria de fazer um orcamento na FS PET!*",
       "",
-      "📋 *Produtos selecionados:*",
+      "*Produtos selecionados:*",
       "",
       ...items.map(
         (item) =>
-          `• *${item.product.name}*\n  Qtd: ${item.quantity}x | R$ ${item.product.price.toFixed(2).replace(".", ",")} cada${item.product.ref ? `\n  REF: ${item.product.ref}` : ""}`
+          `- *${item.product.name}*\n  Qtd: ${item.quantity}x | R$ ${item.product.price.toFixed(2).replace(".", ",")} cada${item.product.ref ? `\n  REF: ${item.product.ref}` : ""}`
       ),
       "",
-      `💰 *Total estimado: R$ ${totalPrice.toFixed(2).replace(".", ",")}*`,
+      `*Total estimado: R$ ${totalPrice.toFixed(2).replace(".", ",")}*`,
       "",
-      "Aguardo confirmação de disponibilidade e valores atualizados. Obrigado! 😊",
+      "Aguardo confirmacao de disponibilidade e valores. Obrigado!",
     ];
 
     const message = encodeURIComponent(lines.join("\n"));
