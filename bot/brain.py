@@ -10,7 +10,7 @@ load_dotenv()
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-MODEL = "gemini-2.0-flash-lite"
+MODEL = "gemini-1.5-flash"
 
 SYSTEM_PROMPT = """Você é Paty, a assistente virtual simpática e prestativa da FS PET Distribuidora. Seu tom é amigável, acolhedor e direto — como uma atendente experiente que ama animais.
 
@@ -149,9 +149,9 @@ def stream_reply(message: str, history: list[dict]):
             _cache[cache_key] = full_reply
 
     except ClientError as e:
-        if e.status_code == 429:
+        if getattr(e, 'code', None) == 429:
             yield _QUOTA_MSG
         else:
-            yield f"Ocorreu um erro no servidor (API). Detalhes: {e.message}"
+            yield f"Ocorreu um erro no servidor (API). Detalhes: {str(e)}"
     except Exception as e:
         yield f"Desculpe, ocorreu um erro inesperado: {str(e)}"
