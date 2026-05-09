@@ -10,7 +10,7 @@ load_dotenv()
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-MODEL = "gemini-1.5-flash"
+MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """Você é Paty, a assistente virtual simpática e prestativa da FS PET Distribuidora. Seu tom é amigável, acolhedor e direto — como uma atendente experiente que ama animais.
 
