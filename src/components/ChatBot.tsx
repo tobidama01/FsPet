@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, ChevronDown, ChevronUp, Bot, Send } from "lucide-react";
+import { MessageCircle, X, ChevronDown, ChevronUp, Bot, Send, RotateCcw } from "lucide-react";
 
 interface Message {
   role: "user" | "bot";
@@ -43,10 +43,14 @@ const FAQ: Record<string, string> = {
   "falar com": "👤 Para falar com nossa equipe diretamente, clique em **'Falar com atendente'** ou acesse o WhatsApp: (51) 9533-4385.",
 };
 
+function normalize(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 function getFallbackResponse(input: string): string {
-  const lower = input.toLowerCase();
+  const norm = normalize(input);
   for (const [key, response] of Object.entries(FAQ)) {
-    if (lower.includes(key)) return response;
+    if (norm.includes(normalize(key))) return response;
   }
   return "🤔 Não tenho certeza sobre isso. Para informações detalhadas, entre em contato pelo nosso WhatsApp: (51) 9533-4385 — nossa equipe te ajuda!";
 }
@@ -70,6 +74,71 @@ const QUICK_REPLIES: QuickReply[] = [
 ];
 
 const BOT_API = process.env.NEXT_PUBLIC_BOT_API ?? "http://localhost:8000";
+const SESSION_KEY = "fspet_chat_session";
+const COOLDOWN_MS = 1500;
+
+// Resets every page load — intentional (sessionStorage survives refresh, this doesn't)
+let proactiveShownThisLoad = false;
+
+const PROACTIVE_MESSAGES = [
+  { text: "Oi! Posso ajudar você a encontrar o produto certo? 👋", cta: "Sim, tenho uma dúvida!" },
+  { text: "Quer saber quais produtos estão em promoção hoje? 🏷️", cta: "Quero ver as promoções!" },
+  { text: "Dúvida sobre entrega ou pagamento? É só perguntar! 🚚", cta: "Tenho uma pergunta!" },
+  { text: "Olá! Sou a Paty. Posso ajudar com produtos para seu pet 🐾", cta: "Vamos lá!" },
+  { text: "Precisa de ajuda para montar seu pedido? Estou aqui! 📦", cta: "Pode me ajudar!" },
+];
+
+const WELCOME_MESSAGE: Message = {
+  role: "bot",
+  text: "👋 Olá! Sou a **Paty**, assistente da FS PET. Posso ajudar com informações sobre horários, entregas, pagamentos e produtos. Escolha uma opção abaixo ou escreva sua pergunta!",
+};
+
+// Returns true when the bot message is prompting the user to reach a human attendant
+function botMentionsAttendant(text: string): boolean {
+  return (
+    /\(51\)\s*9533-?4385/.test(text) ||
+    /falar com atend/i.test(text) ||
+    /botão.*atend|atend.*botão/i.test(text) ||
+    /whatsapp.*atend|atend.*whatsapp/i.test(text)
+  );
+}
+
+// Renders bot text: bold markdown + phone number as WhatsApp link
+function renderBotText(text: string): React.ReactNode[] {
+  const phoneRegex = /(\(51\)\s*9533-?4385)/g;
+  const boldRegex = /\*\*(.*?)\*\*/g;
+
+  const phoneParts = text.split(phoneRegex);
+  const nodes: React.ReactNode[] = [];
+
+  phoneParts.forEach((part, i) => {
+    if (phoneRegex.test(part)) {
+      nodes.push(
+        <a
+          key={i}
+          href={WA_ATENDENTE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-green-600 underline font-semibold hover:text-green-700"
+        >
+          {part}
+        </a>
+      );
+    } else {
+      const boldParts = part.split(boldRegex);
+      boldParts.forEach((bp, j) => {
+        if (j % 2 === 1) {
+          nodes.push(<strong key={`${i}-${j}`}>{bp}</strong>);
+        } else if (bp) {
+          nodes.push(<span key={`${i}-${j}`}>{bp}</span>);
+        }
+      });
+    }
+    phoneRegex.lastIndex = 0;
+  });
+
+  return nodes;
+}
 
 async function fetchBotStream(
   message: string,
@@ -108,18 +177,62 @@ async function fetchBotStream(
 export function ChatBot() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "bot",
-      text: "👋 Olá! Sou a **Paty**, assistente da FS PET. Posso ajudar com informações sobre horários, entregas, pagamentos e produtos. Escolha uma opção abaixo ou escreva sua pergunta!",
-    },
-  ]);
+
+  // Restore conversation from sessionStorage on mount
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) return JSON.parse(saved) as Message[];
+    } catch {}
+    return [WELCOME_MESSAGE];
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [hasUserSent, setHasUserSent] = useState(false);
+  const [isCooling, setIsCooling] = useState(false);
+  const [hasUserSent, setHasUserSent] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const msgs = JSON.parse(saved) as Message[];
+        return msgs.some((m) => m.role === "user");
+      }
+    } catch {}
+    return false;
+  });
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // #1 — Unread badge: true when bot replies while chat is closed
+  const [hasUnread, setHasUnread] = useState(false);
+
+  // #2 — Proactive greeting balloon
+  const [showProactive, setShowProactive] = useState(false);
+  const [proactiveMsg, setProactiveMsg] = useState(PROACTIVE_MESSAGES[0]);
+
+  // Ref so async callbacks can read current isOpen without stale closure
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+
+  // Persist conversation to sessionStorage on every change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
+
+  // #2 — Show proactive balloon after 8s, once per page load
+  useEffect(() => {
+    if (proactiveShownThisLoad) return;
+
+    const timer = setTimeout(() => {
+      if (!isOpenRef.current) {
+        const random = PROACTIVE_MESSAGES[Math.floor(Math.random() * PROACTIVE_MESSAGES.length)];
+        setProactiveMsg(random);
+        setShowProactive(true);
+        proactiveShownThisLoad = true;
+      }
+    }, 8000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (isOpen && !isMinimized) {
@@ -133,9 +246,12 @@ export function ChatBot() {
     }
   }, [isOpen, isMinimized]);
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const sendMessage = async (text?: string) => {
     const msgText = (text ?? input).trim();
-    if (!msgText || isLoading) return;
+    if (!msgText || isLoading || isCooling) return;
 
     const userMsg: Message = { role: "user", text: msgText };
     const currentHistory = messages;
@@ -154,9 +270,15 @@ export function ChatBot() {
         };
         return updated;
       });
+      // #1 — Mark unread if chat was closed while bot was responding
+      if (!isOpenRef.current) {
+        setHasUnread(true);
+      }
     });
 
     setIsLoading(false);
+    setIsCooling(true);
+    setTimeout(() => setIsCooling(false), COOLDOWN_MS);
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -166,23 +288,51 @@ export function ChatBot() {
     }
   };
 
-  const WELCOME_MESSAGE: Message = {
-    role: "bot",
-    text: "👋 Olá! Sou a **Paty**, assistente da FS PET. Posso ajudar com informações sobre horários, entregas, pagamentos e produtos. Escolha uma opção abaixo ou escreva sua pergunta!",
-  };
-
   const handleOpen = () => {
-    if (isOpen) {
-      setMessages([WELCOME_MESSAGE]);
-      setHasUserSent(false);
-      setIsLoading(false);
-    }
     setIsOpen(!isOpen);
     setIsMinimized(false);
+    setHasUnread(false);      // #1 — clear badge on open
+    setShowProactive(false);  // #2 — dismiss balloon if open is clicked
+  };
+
+  // #3 — Reset conversation and sessionStorage
+  const handleNewConversation = () => {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {}
+    setMessages([WELCOME_MESSAGE]);
+    setHasUserSent(false);
+    setIsLoading(false);
+    setHasUnread(false);
+    setIsCooling(false);
   };
 
   return (
     <>
+      {/* #2 — Proactive greeting balloon */}
+      {showProactive && !isOpen && (
+        <div className="fixed bottom-[92px] right-6 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 w-56">
+          <button
+            onClick={() => setShowProactive(false)}
+            className="absolute top-2 right-2 text-gray-300 hover:text-gray-500 transition-colors"
+            aria-label="Fechar"
+          >
+            <X size={14} />
+          </button>
+          <p className="text-sm text-gray-700 pr-4 mb-2">
+            {proactiveMsg.text}
+          </p>
+          <button
+            onClick={() => { setShowProactive(false); setIsOpen(true); setHasUnread(false); }}
+            className="w-full text-xs bg-[#F5C800] text-[#1B2A4A] rounded-full py-1.5 font-semibold hover:bg-yellow-400 transition-colors"
+          >
+            {proactiveMsg.cta}
+          </button>
+          {/* Tail pointing down toward chat button */}
+          <div className="absolute -bottom-2 right-7 w-4 h-4 bg-white border-r border-b border-gray-100 rotate-45" />
+        </div>
+      )}
+
       {/* Toggle button */}
       <button
         onClick={handleOpen}
@@ -191,6 +341,10 @@ export function ChatBot() {
         id="chatbot-toggle"
       >
         {isOpen ? <X size={28} /> : <MessageCircle size={28} />}
+        {/* #1 — Unread badge */}
+        {hasUnread && !isOpen && (
+          <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+        )}
       </button>
 
       {/* Chat window */}
@@ -208,13 +362,26 @@ export function ChatBot() {
                 <p className="text-xs text-green-400">● Online</p>
               </div>
             </div>
-            <button
-              onClick={() => setIsMinimized(!isMinimized)}
-              className="text-gray-300 hover:text-white transition-colors"
-              aria-label={isMinimized ? "Expandir chat" : "Minimizar chat"}
-            >
-              {isMinimized ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* #3 — Nova conversa */}
+              {!isMinimized && (
+                <button
+                  onClick={handleNewConversation}
+                  className="text-gray-400 hover:text-white transition-colors"
+                  aria-label="Nova conversa"
+                  title="Nova conversa"
+                >
+                  <RotateCcw size={15} />
+                </button>
+              )}
+              <button
+                onClick={() => setIsMinimized(!isMinimized)}
+                className="text-gray-300 hover:text-white transition-colors"
+                aria-label={isMinimized ? "Expandir chat" : "Minimizar chat"}
+              >
+                {isMinimized ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+            </div>
           </div>
 
           {!isMinimized && (
@@ -222,7 +389,10 @@ export function ChatBot() {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 min-h-0">
                 {messages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    key={i}
+                    className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+                  >
                     <div
                       className={`max-w-[82%] px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                         msg.role === "user"
@@ -230,8 +400,20 @@ export function ChatBot() {
                           : "bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100"
                       }`}
                     >
-                      {msg.text.replace(/\*\*(.*?)\*\*/g, "$1")}
+                      {msg.role === "bot" ? renderBotText(msg.text) : msg.text}
                     </div>
+
+                    {/* Persistent attendant button below qualifying bot messages */}
+                    {msg.role === "bot" && msg.text && botMentionsAttendant(msg.text) && (
+                      <a
+                        href={WA_ATENDENTE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 text-xs bg-green-500 text-white px-3 py-1.5 rounded-full font-medium hover:bg-green-600 transition-colors shadow-sm"
+                      >
+                        💬 Falar com atendente
+                      </a>
+                    )}
                   </div>
                 ))}
 
@@ -282,7 +464,7 @@ export function ChatBot() {
                 />
                 <button
                   onClick={() => sendMessage()}
-                  disabled={isLoading || !input.trim()}
+                  disabled={isLoading || isCooling || !input.trim()}
                   className="bg-[#F5C800] text-[#1B2A4A] rounded-full w-9 h-9 flex items-center justify-center hover:bg-yellow-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                   aria-label="Enviar mensagem"
                 >
