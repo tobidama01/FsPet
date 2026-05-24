@@ -42,3 +42,10 @@ next-env.d.ts
 
 # Claude Code
 .claude
+
+# Local database certs and keys
+db-certs/
+*.key
+*.crt
+*.node
+

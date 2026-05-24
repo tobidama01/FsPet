@@ -683,18 +683,21 @@ export function getProductImage(product: Product): string | undefined {
   return categoryFallback ? categoryFallback[1] : undefined;
 }
 
-export function getProductsByCategory(categoryId: string): Product[] {
-  return products.filter((p) => p.category === categoryId);
+export function getProductsByCategory(categoryId: string, customProducts?: Product[]): Product[] {
+  const list = customProducts || products;
+  return list.filter((p) => p.category === categoryId);
 }
 
 const normalize = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-export function searchProducts(query: string): Product[] {
+export function searchProducts(query: string, customProducts?: Product[], customCategories?: typeof categories): Product[] {
   const q = normalize(query);
+  const list = customProducts || products;
+  const cats = customCategories || categories;
   const categoryName = (id: string) =>
-    categories.find((c) => c.id === id)?.name ?? "";
-  return products.filter(
+    cats.find((c) => c.id === id)?.name ?? "";
+  return list.filter(
     (p) =>
       normalize(p.name).includes(q) ||
       normalize(p.description).includes(q) ||
@@ -705,6 +708,7 @@ export function searchProducts(query: string): Product[] {
   );
 }
 
-export function getPromoProducts(): Product[] {
-  return products.filter((p) => p.isPromo);
+export function getPromoProducts(customProducts?: Product[]): Product[] {
+  const list = customProducts || products;
+  return list.filter((p) => p.isPromo);
 }

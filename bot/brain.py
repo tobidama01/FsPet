@@ -1,18 +1,22 @@
 import hashlib
 import os
-
+import time
+import asyncpg
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
 
-load_dotenv()
+# Resolve o caminho para o .env no diretório raiz de forma absoluta e independente do diretório de execução (CWD)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_env_path = os.path.join(current_dir, "..", ".env")
+load_dotenv(dotenv_path=root_env_path)
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 MODEL = "gemini-2.5-flash"
 
-SYSTEM_PROMPT = """Você é Paty, a assistente virtual simpática e prestativa da FS PET Distribuidora. Seu tom é amigável, acolhedor e direto — como uma atendente experiente que ama animais.
+SYSTEM_PROMPT_TEMPLATE = """Você é Paty, a assistente virtual simpática e prestativa da FS PET Distribuidora. Seu tom é amigável, acolhedor e direto — como uma atendente experiente que ama animais.
 
 ## Sobre a FS PET
 - Distribuidora de produtos pet localizada no Rio Grande do Sul
@@ -25,7 +29,23 @@ SYSTEM_PROMPT = """Você é Paty, a assistente virtual simpática e prestativa d
 PIX (chave enviada pelo WhatsApp), boleto bancário, cartão de crédito/débito (mediante consulta)
 
 ## Catálogo de Produtos
+{catalog}
 
+## Regras de comportamento
+1. Responda SEMPRE em português brasileiro, de forma natural e amigável
+2. Use emojis com moderação (máx. 2 por mensagem) para tornar o tom mais leve
+3. Para pedidos ou orçamentos, direcione sempre ao WhatsApp: (51) 9533-4385
+4. Mantenha respostas curtas e objetivas — no máximo 3 parágrafos
+5. Para questões de saúde animal, sempre recomende consultar um veterinário
+6. Não invente produtos fora do catálogo acima
+7. Se não souber algo, diga que não tem certeza e indique o WhatsApp para consulta
+8. Nunca mencione concorrentes ou faça comparações negativas
+9. Seu nome é Paty
+10. Se o cliente quiser falar com um atendente humano, ou usar variações como "falar com uma pessoa", "suporte humano", "quero falar com alguém", "atendimento humano", "falar com a loja" etc., responda com algo como: "Claro! 😊 Clique no botão verde **'Falar com atendente'** abaixo, ou acesse diretamente nosso WhatsApp: (51) 9533-4385. Nossa equipe está pronta para te atender!"
+"""
+
+# Fallback estático caso ocorra alguma falha na conexão com o banco de dados
+SYSTEM_PROMPT_FALLBACK = SYSTEM_PROMPT_TEMPLATE.replace("{catalog}", """
 **Cães**
 - Comedouros/Bebedouros anti-formiga: 350ml (R$3,74 🔥promoção), 1000ml (R$6,87 🔥promoção), 1900ml (R$11,99 🔥promoção)
 - Comedouros de alumínio pesado: Grande 2300ml (R$24,99 🔥promoção), Gigante 2800ml (R$29,99 🔥promoção)
@@ -67,19 +87,69 @@ PIX (chave enviada pelo WhatsApp), boleto bancário, cartão de crédito/débito
 - Vermífugo para cães comprimido (R$18,90), Vermífugo para gatos comprimido (R$18,90)
 - Antipulgas pipeta tópica (R$28,90), Suplemento articular glucosamina (R$55,90)
 - Colar elizabetano plástico P (R$15,90), Seringa medicamento oral 10ml (R$6,90)
+""")
 
-## Regras de comportamento
-1. Responda SEMPRE em português brasileiro, de forma natural e amigável
-2. Use emojis com moderação (máx. 2 por mensagem) para tornar o tom mais leve
-3. Para pedidos ou orçamentos, direcione sempre ao WhatsApp: (51) 9533-4385
-4. Mantenha respostas curtas e objetivas — no máximo 3 parágrafos
-5. Para questões de saúde animal, sempre recomende consultar um veterinário
-6. Não invente produtos fora do catálogo acima
-7. Se não souber algo, diga que não tem certeza e indique o WhatsApp para consulta
-8. Nunca mencione concorrentes ou faça comparações negativas
-9. Seu nome é Paty
-10. Se o cliente quiser falar com um atendente humano, ou usar variações como "falar com uma pessoa", "suporte humano", "quero falar com alguém", "atendimento humano", "falar com a loja" etc., responda com algo como: "Claro! 😊 Clique no botão verde **'Falar com atendente'** abaixo, ou acesse diretamente nosso WhatsApp: (51) 9533-4385. Nossa equipe está pronta para te atender!"
-"""
+_cached_prompt = None
+_cache_timestamp = 0
+CACHE_TTL = 300  # 5 minutos
+
+async def get_system_prompt() -> str:
+    global _cached_prompt, _cache_timestamp
+    now = time.time()
+    
+    # Retornar cache em memória se dentro do TTL
+    if _cached_prompt and (now - _cache_timestamp < CACHE_TTL):
+        return _cached_prompt
+
+    try:
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            raise ValueError("DATABASE_URL não configurada no ambiente")
+
+        # Conectar ao banco com SSL/TLS criptografado obrigatório
+        conn = await asyncpg.connect(db_url, ssl="require")
+        
+        # Buscar Categorias
+        categories = await conn.fetch("SELECT id, name, icon FROM \"Category\"")
+        # Buscar Produtos
+        products = await conn.fetch(
+            "SELECT id, name, price, \"isPromo\", category, subcategory FROM \"Product\" ORDER BY category ASC, price ASC"
+        )
+        await conn.close()
+
+        # Mapeamento de categorias ordenadas
+        order = ["caes", "gatos", "banho-tosa-higiene", "petiscos", "animais-pequenos", "vet"]
+        sorted_categories = sorted(
+            categories,
+            key=lambda c: order.index(c["id"]) if c["id"] in order else 99
+        )
+
+        catalog_lines = []
+        for cat in sorted_categories:
+            cat_id = cat["id"]
+            cat_name = cat["name"]
+            
+            # Filtrar produtos desta categoria
+            cat_prods = [p for p in products if p["category"] == cat_id]
+            if not cat_prods:
+                continue
+            
+            catalog_lines.append(f"\n**{cat_name}**")
+            for p in cat_prods:
+                promo_flag = " 🔥promoção" if p["isPromo"] else ""
+                price_formatted = f"R${p['price']:.2f}".replace('.', ',')
+                catalog_lines.append(f"- {p['name']}: {price_formatted}{promo_flag}")
+
+        catalog_str = "\n".join(catalog_lines)
+        _cached_prompt = SYSTEM_PROMPT_TEMPLATE.replace("{catalog}", catalog_str)
+        _cache_timestamp = now
+        
+        return _cached_prompt
+    except Exception as e:
+        print(f"[Database Error] Falha ao carregar catálogo dinâmico do PostgreSQL: {e}")
+        # Fallback seguro para manter a Paty online
+        return SYSTEM_PROMPT_FALLBACK
+
 
 _cache: dict[str, str] = {}
 MAX_HISTORY = 6
@@ -94,23 +164,22 @@ def _build_contents(message: str, history: list[dict]) -> list[types.Content]:
     return contents
 
 
-_CONFIG = types.GenerateContentConfig(
-    system_instruction=SYSTEM_PROMPT,
-    max_output_tokens=400,
-    temperature=0.7,
-)
-
-
-def get_reply(message: str, history: list[dict]) -> str:
+def get_reply(message: str, history: list[dict], system_prompt: str) -> str:
     cache_key = hashlib.md5(message.lower().strip().encode()).hexdigest() if not history else None
 
     if cache_key and cache_key in _cache:
         return _cache[cache_key]
 
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        max_output_tokens=400,
+        temperature=0.7,
+    )
+
     response = client.models.generate_content(
         model=MODEL,
         contents=_build_contents(message, history),
-        config=_CONFIG,
+        config=config,
     )
 
     reply: str = response.text or "Desculpe, não consegui processar sua pergunta. Tente novamente!"
@@ -127,19 +196,25 @@ _QUOTA_MSG = (
 )
 
 
-def stream_reply(message: str, history: list[dict]):
+def stream_reply(message: str, history: list[dict], system_prompt: str):
     cache_key = hashlib.md5(message.lower().strip().encode()).hexdigest() if not history else None
 
     if cache_key and cache_key in _cache:
         yield _cache[cache_key]
         return
 
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        max_output_tokens=400,
+        temperature=0.7,
+    )
+
     try:
         full_reply = ""
         for chunk in client.models.generate_content_stream(
             model=MODEL,
             contents=_build_contents(message, history),
-            config=_CONFIG,
+            config=config,
         ):
             if chunk.text:
                 full_reply += chunk.text

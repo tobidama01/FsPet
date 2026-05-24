@@ -1,36 +1,66 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { ProductCard } from "@/components/ProductCard";
 import { Cart } from "@/components/Cart";
 import { ChatBot } from "@/components/ChatBot";
 import {
-  products,
-  categories,
+  products as staticProducts,
+  categories as staticCategories,
   getProductsByCategory,
   searchProducts,
   getPromoProducts,
+  Product,
 } from "@/lib/products";
 import { Tag, Star, ChevronRight, MapPin } from "lucide-react";
 
 export default function Home() {
+  const [dbProducts, setDbProducts] = useState<Product[]>(staticProducts);
+  const [dbCategories, setDbCategories] = useState(staticCategories);
   const [selectedCategory, setSelectedCategory] = useState<string>("todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [showPromoOnly, setShowPromoOnly] = useState(false);
 
+  // Carregar produtos e categorias dinamicamente do banco PostgreSQL
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [resProducts, resCategories] = await Promise.all([
+          fetch("/api/products"),
+          fetch("/api/categories"),
+        ]);
+        if (resProducts.ok) {
+          const dataProds = await resProducts.json();
+          if (Array.isArray(dataProds) && dataProds.length > 0) {
+            setDbProducts(dataProds);
+          }
+        }
+        if (resCategories.ok) {
+          const dataCats = await resCategories.json();
+          if (Array.isArray(dataCats) && dataCats.length > 0) {
+            setDbCategories(dataCats);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao conectar com a API do PostgreSQL:", err);
+      }
+    }
+    loadData();
+  }, []);
+
   const displayedProducts = useMemo(() => {
     if (searchQuery.trim()) {
-      return searchProducts(searchQuery);
+      return searchProducts(searchQuery, dbProducts, dbCategories);
     }
     if (showPromoOnly) {
-      return getPromoProducts();
+      return getPromoProducts(dbProducts);
     }
     if (selectedCategory === "todos") {
-      return products;
+      return dbProducts;
     }
-    return getProductsByCategory(selectedCategory);
-  }, [selectedCategory, searchQuery, showPromoOnly]);
+    return getProductsByCategory(selectedCategory, dbProducts);
+  }, [selectedCategory, searchQuery, showPromoOnly, dbProducts, dbCategories]);
 
   const handleSearch = (q: string) => {
     setSearchQuery(q);
@@ -138,7 +168,7 @@ export default function Home() {
       {/* ========== CATEGORY BANNERS ========== */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-4">
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-          {categories.map((cat) => (
+          {dbCategories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => handleCategorySelect(cat.id)}
@@ -169,11 +199,11 @@ export default function Home() {
                   ? "🏷️ Promoções Especiais"
                   : selectedCategory === "todos"
                     ? "Catálogo por Categoria"
-                    : categories.find((c) => c.id === selectedCategory)?.name ?? "Produtos"}
+                    : dbCategories.find((c) => c.id === selectedCategory)?.name ?? "Produtos"}
             </h2>
             <p className="text-gray-400 text-sm mt-0.5">
               {selectedCategory === "todos" && !showPromoOnly && !searchQuery
-                ? `${categories.length} categorias • ${products.length} produtos no total`
+                ? `${dbCategories.length} categorias • ${dbProducts.length} produtos no total`
                 : `${displayedProducts.length} produto${displayedProducts.length !== 1 ? "s" : ""} encontrado${displayedProducts.length !== 1 ? "s" : ""}`}
             </p>
           </div>
@@ -206,8 +236,8 @@ export default function Home() {
         {/* ── VIEW 1: Página inicial — seções por categoria ── */}
         {selectedCategory === "todos" && !showPromoOnly && !searchQuery ? (
           <div className="space-y-12">
-            {categories.map((cat) => {
-              const catProducts = getProductsByCategory(cat.id);
+            {dbCategories.map((cat) => {
+              const catProducts = getProductsByCategory(cat.id, dbProducts);
               if (catProducts.length === 0) return null;
               const preview = catProducts.slice(0, 4);
               return (
@@ -356,7 +386,7 @@ export default function Home() {
             <div>
               <h3 className="text-white font-semibold mb-3 text-sm">Categorias</h3>
               <ul className="space-y-2 text-sm">
-                {categories.map((c) => (
+                {dbCategories.map((c) => (
                   <li key={c.id}>
                     <button
                       onClick={() => {
